@@ -62,17 +62,18 @@ flowchart TD
     ETL -->|"Registra metadados\ndo dataset"| CATALOG
     REFINED -->|"Dados lidos\npara consulta"| SQL
     CATALOG -->|"Fornece esquema\ne estrutura"| SQL
-
+```
 ### Fluxo do Pipeline
 
-1. **Extração**: Script Python coleta dados diários de ações/índices da B3 via `yfinance` ou scraping.
-2. **Ingestão Bruta**: Os dados são salvos no S3 em formato Parquet, particionados por data (`raw/`).
-3. **Trigger Lambda**: O Lambda é disparado diariamente por um scheduler programado no EventBridge.
-4. **ETL no Glue**: A Lambda dispara o job de ETL no AWS Glue, que realiza as transformações necessárias.
-5. **Dados Refinados**: O resultado é salvo no S3 na pasta `refined/`, particionado por ticker.
-6. **Catalogação**: O Glue Catalog registra automaticamente os metadados da tabela.
-7. **Consultas Analíticas**: Os dados ficam disponíveis para consulta SQL via AWS Athena.
-```
+1. **Scrape**: Coleta todos os ticker disponíveis para extração a partir do investidor10.com.
+2. **Extração**: Script Python coleta dados diários de ações/índices da B3 via `yfinance`.
+3. **Ingestão Bruta**: Os dados são salvos no S3 em formato Parquet, particionados por data (`raw/`).
+4. **Trigger Lambda**: O Lambda é disparado diariamente por um scheduler programado no EventBridge.
+5. **ETL no Glue**: A Lambda dispara o job de ETL no AWS Glue, que realiza as transformações necessárias.
+6. **Dados Refinados**: O resultado é salvo no S3 na pasta `refined/`, particionado por ticker.
+7. **Catalogação**: O Glue Catalog registra automaticamente os metadados da tabela.
+8. **Consultas Analíticas**: Os dados ficam disponíveis para consulta SQL via AWS Athena.
+
 ---
 
 ## 📁 Estrutura do Repositório
