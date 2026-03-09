@@ -78,7 +78,7 @@ flowchart TD
 ```
 ### Fluxo do Pipeline
 
-1. **Scrape**: Coleta todos os ticker disponíveis para extração a partir do investidor10.com.
+1. **Scrap**: Coleta todos os ticker disponíveis para extração a partir do investidor10.com.
 2. **Extração**: Script Python coleta dados diários de ações/índices da B3 via `yfinance`.
 3. **Ingestão Bruta**: Os dados são salvos no S3 em formato Parquet, particionados por data (`raw/`).
 4. **Trigger Lambda**: O Lambda é disparado diariamente por um scheduler programado no EventBridge.
@@ -156,41 +156,36 @@ pip install yfinance pandas pyarrow boto3
 ### 1. Extração e Ingestão dos Dados Brutos
 
 ```bash
-python src/extraction/bovespa_scraper.py
+python src/extraction/main.py
 ```
 
 Esse script coleta os dados diários e faz o upload para o bucket S3 no caminho:
 
 ```
-s3://<seu-bucket>/raw/ticker=<TICKER>/date=<YYYY-MM-DD>/data.parquet
+s3://<seu-bucket>/raw/ticker=<TICKER>/b3_yyyymmdd.parquet
 ```
 
-### 2. Configurar a Função Lambda
+### 2. Configurar o Job Glue
 
-Faça o deploy da função `src/lambda/trigger_glue.py` na AWS Lambda e configure o trigger de evento S3 (evento `s3:ObjectCreated:*`) apontando para o bucket e prefixo `raw/`.
-
-### 3. Configurar o Job Glue
-
-Faça o upload do script `src/glue/etl_job.py` no AWS Glue e configure:
+Faça o upload do script `src/glue/techchallenge-f2-glue-etl-refined.py` no AWS Glue e configure:
 
 - **IAM Role** com permissões para S3, Glue e Glue Catalog.
 - **Caminho de entrada**: `s3://<seu-bucket>/raw/`
 - **Caminho de saída**: `s3://<seu-bucket>/refined/`
+
+### 3. Configurar a Função Lambda
+
+Faça o deploy da função `src/lambda/techchallenge-f2-glue-etl-refined.py` na AWS Lambda. Após a configuração da Lambda, configurar o disparo no EventBridge para dispará-la.
 
 ### 4. Consultar os Dados no Athena
 
 Após a execução do pipeline, os dados estarão disponíveis no Glue Catalog. Exemplo de consulta no Athena:
 
 ```sql
-SELECT
-    ticker,
-    date,
-    preco_fechamento,
-    media_movel_7d,
-    volume_total
-FROM default.bovespa_refined
-WHERE date >= '2024-01-01'
-ORDER BY ticker, date;
+SELECT *
+FROM b3_stocks.b3_refined
+WHERE ticker = 'PRIO3'
+ORDER BY date DESC
 ```
 
 ---
@@ -223,7 +218,7 @@ s3://fiap-8mlet-techchallenge-f2-bkt/
 
 ## 👨‍💻 Autores
 
-Desenvolvido como parte do **Tech Challenge — Fase 2** da Pós-Graduação em **Machine Learning Engineering** da **FIAP**.
+Desenvolvido como parte do **Tech Challenge — Fase 2** da Pós-Graduação em **Machine Learning Engineering** da **FIAP** por Ricardo Sandrini.
 
 ---
 
