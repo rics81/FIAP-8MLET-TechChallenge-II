@@ -12,26 +12,56 @@ Este projeto implementa um pipeline de dados completo para extração, processam
 ---
 
 ## 🏗️ Arquitetura
+```mermaid
+flowchart TD
+    subgraph Local["💻 Execução Local · main.py"]
+        SCRIPT["Script Automatizado\npython main.py"]
+        SCRAP["Raspagem de Tickers\ninvestidor10.com.br/acoes"]
+        CHECK["Verificação de Dados\nConsulta última data já salva\nna nuvem para evitar duplicatas"]
+        FETCH["Busca de Dados\nyfinance API\nBusca apenas datas novas"]
+        FILTER["Filtro de Segurança\nRemove datas já existentes\nna nuvem"]
+        PARQUET["Geração de Arquivos\nSalva em Parquet\npor data em pasta temporária"]
+    end
 
-```
-┌─────────────────┐     ┌───────────────┐     ┌──────────────────┐
-│  Coleta de Dados│────▶│   AWS S3      │────▶│  AWS Lambda      │
-│  (yfinance /    │     │  (raw/parquet)│     │  (trigger ETL)   │
-│   scraping B3)  │     └───────────────┘     └────────┬─────────┘
-└─────────────────┘                                    │
-                                                       ▼
-                                            ┌──────────────────┐
-                                            │   AWS Glue Job   │
-                                            │  (transformações)│
-                                            └────────┬─────────┘
-                                                     │
-                          ┌──────────────────────────┼───────────────────────┐
-                          ▼                          ▼                       ▼
-               ┌──────────────────┐     ┌───────────────────┐   ┌───────────────────┐
-               │   AWS S3         │     │  AWS Glue Catalog │   │   AWS Athena      │
-               │ (refined/parquet)│────▶│  (metadados)      │──▶│  (consultas SQL)  │
-               └──────────────────┘     └───────────────────┘   └───────────────────┘
-```
+    subgraph Nuvem["☁️ Nuvem · AWS"]
+        subgraph Armazenar["🗄️ Armazenamento"]
+            RAW["Dados Brutos\nArquivos Parquet particionados\npor data"]
+            REFINED["Dados Refinados\nArquivos Parquet organizados\npor data e código da ação"]
+        end
+
+        subgraph Orquestrar["⏰ Agendamento"]
+            EVENTBRIDGE["Agendador\nDisparado automaticamente\numa vez por dia"]
+        end
+
+        subgraph Processar["⚡ Acionamento"]
+            LAMBDA["Notificador\nDetecta novo arquivo e\ninicia o processamento"]
+        end
+
+        subgraph Transformar["⚙️ Transformação · Glue"]
+            ETL["Motor de Processamento\n───────────────────────\n➕ Sumarizar e agregar valores\n✏️ Padronizar nomes das colunas\n📅 Calcular tendências e médias"]
+        end
+
+        subgraph Analisar["🔍 Consulta"]
+            CATALOG["Catálogo de Dados\nÍndice dos datasets\ne suas estruturas"]
+            SQL["Motor de Consultas\nAnalistas consultam via SQL"]
+        end
+    end
+
+    SCRIPT --> SCRAP
+    SCRAP -->|"Lista de tickers\nda B3"| CHECK
+    CHECK -->|"Consulta última\ndata disponível"| RAW
+    CHECK -->|"Busca apenas\ndatas ausentes"| FETCH
+    FETCH -->|"Dados históricos\ndas ações"| FILTER
+    FILTER --> PARQUET
+    PARQUET -->|"Upload dos\narquivos novos"| RAW
+
+    EVENTBRIDGE -->|"Cron diário\nautomático"| LAMBDA
+    RAW -->|"Novo arquivo\ndetectado"| LAMBDA
+    LAMBDA -->|"Inicia o\nprocessamento"| ETL
+    ETL -->|"Grava dados\nlimpos e estruturados"| REFINED
+    ETL -->|"Registra metadados\ndo dataset"| CATALOG
+    REFINED -->|"Dados lidos\npara consulta"| SQL
+    CATALOG -->|"Fornece esquema\ne estrutura"| SQL
 
 ### Fluxo do Pipeline
 
@@ -42,7 +72,7 @@ Este projeto implementa um pipeline de dados completo para extração, processam
 5. **Dados Refinados**: O resultado é salvo no S3 na pasta `refined/`, particionado por ticker.
 6. **Catalogação**: O Glue Catalog registra automaticamente os metadados da tabela.
 7. **Consultas Analíticas**: Os dados ficam disponíveis para consulta SQL via AWS Athena.
-
+```
 ---
 
 ## 📁 Estrutura do Repositório
