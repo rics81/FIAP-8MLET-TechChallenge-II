@@ -37,9 +37,9 @@ Este projeto implementa um pipeline de dados completo para extração, processam
 
 1. **Extração**: Script Python coleta dados diários de ações/índices da B3 via `yfinance` ou scraping.
 2. **Ingestão Bruta**: Os dados são salvos no S3 em formato Parquet, particionados por data (`raw/`).
-3. **Trigger Lambda**: O evento de chegada do arquivo no S3 aciona uma função Lambda.
+3. **Trigger Lambda**: O Lambda é disparado diariamente por um scheduler programado no EventBridge.
 4. **ETL no Glue**: A Lambda dispara o job de ETL no AWS Glue, que realiza as transformações necessárias.
-5. **Dados Refinados**: O resultado é salvo no S3 na pasta `refined/`, particionado por data e ticker.
+5. **Dados Refinados**: O resultado é salvo no S3 na pasta `refined/`, particionado por ticker.
 6. **Catalogação**: O Glue Catalog registra automaticamente os metadados da tabela.
 7. **Consultas Analíticas**: Os dados ficam disponíveis para consulta SQL via AWS Athena.
 
@@ -84,11 +84,12 @@ FIAP-8MLET-TechChallenge-II/
 - **Requisito 1** — Extração de dados de ações/índices da B3 com granularidade diária.
 - **Requisito 2** — Dados brutos ingeridos no S3 em formato Parquet com partição diária.
 - **Requisito 3** — Bucket S3 aciona uma Lambda que por sua vez inicia o job ETL no Glue.
+Nota: Eu optei por não disparar o Lambda pela inclusão de novos arquivos no S3 e sim, dispara-lo por uma scheduler uma vez ao dia.
 - **Requisito 4** — Função Lambda (Python) responsável exclusivamente por iniciar o job Glue.
 - **Requisito 5** — Job Glue com as seguintes transformações obrigatórias:
-  - **A**: Agrupamento numérico com sumarização (ex.: volume médio, preço médio por ticker).
+  - **A**: Agrupamento numérico com sumarização (ex.: valor máximo e valor mínimo).
   - **B**: Renomeação de colunas existentes além das de agrupamento.
-  - **C**: Cálculo baseado em data (ex.: média móvel de 7 dias do preço de fechamento).
+  - **C**: Cálculo baseado em data (ex.: média móvel de 20 dias do preço de fechamento).
 - **Requisito 6** — Dados refinados salvos em Parquet na pasta `refined/`, particionados por data e ticker.
 - **Requisito 7** — Job Glue cataloga automaticamente os dados no Glue Catalog (banco `default`).
 - **Requisito 8** — Dados disponíveis para consulta SQL via AWS Athena.
@@ -154,26 +155,24 @@ ORDER BY ticker, date;
 
 | Transformação | Descrição |
 |---|---|
-| **Agrupamento** | Cálculo de volume total e preço médio agrupados por ticker e data |
-| **Renomeação de colunas** | `Close` → `preco_fechamento`, `Volume` → `volume_negociado` |
-| **Cálculo temporal** | Média móvel de 7 dias (`media_movel_7d`) e variação diária percentual (`variacao_diaria_pct`) |
+| **Agrupamento** | Cálculo do valor máximo e mínimo agrupados por ticker dos últimos 10 dias |
+| **Renomeação de colunas** | `high` → `hi`, `low` → `lo` |
+| **Cálculo temporal** | Média móvel de 20 dias (`ema_20d`) e VWAP (`vwap_20d`) |
 
 ---
 
 ## 📦 Estrutura de Dados no S3
 
 ```
-s3://<seu-bucket>/
-├── raw/
-│   └── date=2024-01-15/
-│       └── bovespa_raw.parquet
+s3://fiap-8mlet-techchallenge-f2-bkt/
+├── b3_daily/
+|   └── raw/
+│       └── b3_yyyymmdd.parquet
 └── refined/
     ├── ticker=PETR4/
-    │   └── date=2024-01-15/
-    │       └── refined.parquet
+    │   └── refined.parquet
     └── ticker=VALE3/
-        └── date=2024-01-15/
-            └── refined.parquet
+        └── refined.parquet
 ```
 
 ---

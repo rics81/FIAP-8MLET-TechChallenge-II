@@ -16,8 +16,18 @@ def lambda_handler(event, context):
     s3   = boto3.client("s3")
 
     today = datetime.now(timezone.utc)
-    today = today - timedelta(days=1)
-    today = today.strftime("%Y%m%d")
+
+    # Find last business day
+    weekday = today.weekday()  # 0=Monday, 6=Sunday
+    if weekday == 0:           # Monday → go back to Friday
+        delta = 3
+    elif weekday == 6:         # Sunday → go back to Friday (just in case)
+        delta = 2
+    else:                      # Tuesday-Saturday → previous day
+        delta = 1
+
+    last_business_day = today - timedelta(days=delta)
+    today = last_business_day.strftime("%Y%m%d")
     expected = f"{RAW_PREFIX}b3_{today}.parquet"
 
     logger.info(f"EventBridge trigger fired. Looking for: s3://{BUCKET_NAME}/{expected}")

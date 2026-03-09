@@ -123,6 +123,29 @@ df_refined = df.select(
 )
 print("Refined dataframe ready!")
 
+# ── Clean refined folder before writing ──────────────────────────────────────
+s3 = boto3.resource("s3")
+bucket = s3.Bucket(S3_BUCKET)
+deleted = 0
+for obj in bucket.objects.filter(Prefix=S3_PREFIX_REFINED):
+    obj.delete()
+    deleted += 1
+print(f"[OK] Cleaned {deleted} objects from refined folder")
+
+# ── Write refined parquet to S3 ───────────────────────────────────────────────
+spark.conf.set("spark.sql.sources.partitionOverwriteMode", "dynamic")
+
+(
+    df_refined
+    .repartition("ticker")
+    .write
+    .mode("overwrite")
+    .partitionBy("ticker")
+    .parquet(refined_path)
+)
+print(f"[OK] Refined data written to {refined_path}")
+
+# ── Register in Glue Catalog ──────────────────────────────────────────────────
 glue_client = boto3.client("glue", region_name="sa-east-1")
 try:
     glue_client.create_database(DatabaseInput={"Name": GLUE_DATABASE})
@@ -130,17 +153,16 @@ try:
 except glue_client.exceptions.AlreadyExistsException:
     print(f"[OK] Database '{GLUE_DATABASE}' already exists")
 
-dynamic_frame = DynamicFrame.fromDF(df_refined, glueContext, "refined")
-sink = glueContext.getSink(
-    connection_type="s3",
-    path=refined_path,
-    enableUpdateCatalog=True,
-    updateBehavior="UPDATE_IN_DATABASE",
-    partitionKeys=["ticker"],
-)
-sink.setFormat("parquet", useGlueParquetWriter=True)
-sink.setCatalogInfo(catalogDatabase=GLUE_DATABASE, catalogTableName=GLUE_TABLE)
-sink.writeFrame(dynamic_frame)
+# Drop and recreate table so schema is always fresh
+spark.sql(f"DROP TABLE IF EXISTS {GLUE_DATABASE}.{GLUE_TABLE}")
+
+spark.sql(f"""
+    CREATE TABLE {GLUE_DATABASE}.{GLUE_TABLE}
+    USING PARQUET
+    LOCATION '{refined_path}'
+""")
+
+spark.sql(f"MSCK REPAIR TABLE {GLUE_DATABASE}.{GLUE_TABLE}")
 print(f"[OK] Glue Catalog updated: {GLUE_DATABASE}.{GLUE_TABLE}")
 
 job.commit()
