@@ -13,14 +13,22 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 
 def main():
+    # 1. Scrape all tickers
+    base_url = "https://investidor10.com.br/acoes/"
+    tickers = scrape_all_pages(base_url)
+    if not tickers:
+        logging.error("No tickers scraped. Exiting.")
+        return
+    logging.info(f"Scraped {len(tickers)} tickers.")
+
+    # 2. Check the latest date already in S3 to avoid reprocessing
     bucket = os.getenv('S3_BUCKET')
     if not bucket:
         logging.error("S3_BUCKET not set in environment.")
         return
     prefix = os.getenv('S3_PREFIX', '')
     max_days = int(os.getenv('DEFAULT_DAYS', 5))
-
-    # 1. Check the latest date already in S3 to avoid reprocessing
+    
     latest_date_in_s3 = get_latest_date_from_s3(bucket, s3_prefix=prefix)
     today = date.today()
 
@@ -40,14 +48,6 @@ def main():
     else:
         start_date = None
         logging.info(f"No existing data in S3. Fetching last {max_days} trading days.")
-
-    # 2. Scrape all tickers
-    base_url = "https://investidor10.com.br/acoes/"
-    tickers = scrape_all_pages(base_url)
-    if not tickers:
-        logging.error("No tickers scraped. Exiting.")
-        return
-    logging.info(f"Scraped {len(tickers)} tickers.")
 
     # 3. Fetch data for the required date window
     data = fetch_data(tickers, start_date=start_date, max_days=max_days)
