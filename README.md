@@ -1,2 +1,189 @@
 # FIAP-8MLET-TechChallenge-II
-Pipeline Batch Bovespa: ingestão e arquitetura de dados
+
+> **Pipeline Batch Bovespa: Ingestão e Arquitetura de Dados**
+> Tech Challenge — Pós-Graduação Machine Learning Engineering | FIAP
+
+---
+
+## 📌 Descrição
+
+Este projeto implementa um pipeline de dados completo para extração, processamento e análise de ações e índices da B3 (Bolsa de Valores do Brasil). A solução utiliza serviços gerenciados da AWS para orquestrar o fluxo de dados desde a coleta até a disponibilização para consultas analíticas via SQL.
+
+---
+
+## 🏗️ Arquitetura
+
+```
+┌─────────────────┐     ┌───────────────┐     ┌──────────────────┐
+│  Coleta de Dados│────▶│   AWS S3      │────▶│  AWS Lambda      │
+│  (yfinance /    │     │  (raw/parquet)│     │  (trigger ETL)   │
+│   scraping B3)  │     └───────────────┘     └────────┬─────────┘
+└─────────────────┘                                    │
+                                                       ▼
+                                            ┌──────────────────┐
+                                            │   AWS Glue Job   │
+                                            │  (transformações)│
+                                            └────────┬─────────┘
+                                                     │
+                          ┌──────────────────────────┼───────────────────────┐
+                          ▼                          ▼                       ▼
+               ┌──────────────────┐     ┌───────────────────┐   ┌───────────────────┐
+               │   AWS S3         │     │  AWS Glue Catalog │   │   AWS Athena      │
+               │ (refined/parquet)│────▶│  (metadados)      │──▶│  (consultas SQL)  │
+               └──────────────────┘     └───────────────────┘   └───────────────────┘
+```
+
+### Fluxo do Pipeline
+
+1. **Extração**: Script Python coleta dados diários de ações/índices da B3 via `yfinance` ou scraping.
+2. **Ingestão Bruta**: Os dados são salvos no S3 em formato Parquet, particionados por data (`raw/`).
+3. **Trigger Lambda**: O evento de chegada do arquivo no S3 aciona uma função Lambda.
+4. **ETL no Glue**: A Lambda dispara o job de ETL no AWS Glue, que realiza as transformações necessárias.
+5. **Dados Refinados**: O resultado é salvo no S3 na pasta `refined/`, particionado por data e ticker.
+6. **Catalogação**: O Glue Catalog registra automaticamente os metadados da tabela.
+7. **Consultas Analíticas**: Os dados ficam disponíveis para consulta SQL via AWS Athena.
+
+---
+
+## 📁 Estrutura do Repositório
+
+```
+FIAP-8MLET-TechChallenge-II/
+├── glue
+│   └── techchallenge-f2-glue-etl-refined.py
+├── lambda
+│   └── fiap-8mlet-techchallenge-f2-lambda.py
+├── README.md
+└── src
+    ├── env.example
+    ├── load_data_from_yfinance.py
+    ├── load_to_s3.py
+    ├── main.py
+    └── scrap_tickers.py
+```
+
+---
+
+## ⚙️ Tecnologias Utilizadas
+
+| Tecnologia | Função |
+|---|---|
+| **Python** | Linguagem principal do projeto |
+| **yfinance** | Extração de dados históricos da B3 |
+| **AWS S3** | Armazenamento dos dados brutos e refinados |
+| **AWS Lambda** | Trigger para acionamento automático do job Glue |
+| **AWS Glue** | Job de ETL para transformação dos dados |
+| **AWS Glue Catalog** | Catalogação automática dos dados refinados |
+| **AWS Athena** | Consultas SQL sobre os dados refinados |
+| **Apache Parquet** | Formato de armazenamento colunar otimizado |
+
+---
+
+## ✅ Requisitos Implementados
+
+- **Requisito 1** — Extração de dados de ações/índices da B3 com granularidade diária.
+- **Requisito 2** — Dados brutos ingeridos no S3 em formato Parquet com partição diária.
+- **Requisito 3** — Bucket S3 aciona uma Lambda que por sua vez inicia o job ETL no Glue.
+- **Requisito 4** — Função Lambda (Python) responsável exclusivamente por iniciar o job Glue.
+- **Requisito 5** — Job Glue com as seguintes transformações obrigatórias:
+  - **A**: Agrupamento numérico com sumarização (ex.: volume médio, preço médio por ticker).
+  - **B**: Renomeação de colunas existentes além das de agrupamento.
+  - **C**: Cálculo baseado em data (ex.: média móvel de 7 dias do preço de fechamento).
+- **Requisito 6** — Dados refinados salvos em Parquet na pasta `refined/`, particionados por data e ticker.
+- **Requisito 7** — Job Glue cataloga automaticamente os dados no Glue Catalog (banco `default`).
+- **Requisito 8** — Dados disponíveis para consulta SQL via AWS Athena.
+
+---
+
+## 🚀 Como Executar
+
+### Pré-requisitos
+
+- Conta AWS com permissões para S3, Lambda, Glue e Athena
+- Python 3.10+
+- AWS CLI configurado (`aws configure`)
+- Biblioteca `yfinance` instalada
+
+```bash
+pip install yfinance pandas pyarrow boto3
+```
+
+### 1. Extração e Ingestão dos Dados Brutos
+
+```bash
+python src/extraction/bovespa_scraper.py
+```
+
+Esse script coleta os dados diários e faz o upload para o bucket S3 no caminho:
+
+```
+s3://<seu-bucket>/raw/ticker=<TICKER>/date=<YYYY-MM-DD>/data.parquet
+```
+
+### 2. Configurar a Função Lambda
+
+Faça o deploy da função `src/lambda/trigger_glue.py` na AWS Lambda e configure o trigger de evento S3 (evento `s3:ObjectCreated:*`) apontando para o bucket e prefixo `raw/`.
+
+### 3. Configurar o Job Glue
+
+Faça o upload do script `src/glue/etl_job.py` no AWS Glue e configure:
+
+- **IAM Role** com permissões para S3, Glue e Glue Catalog.
+- **Caminho de entrada**: `s3://<seu-bucket>/raw/`
+- **Caminho de saída**: `s3://<seu-bucket>/refined/`
+
+### 4. Consultar os Dados no Athena
+
+Após a execução do pipeline, os dados estarão disponíveis no Glue Catalog. Exemplo de consulta no Athena:
+
+```sql
+SELECT
+    ticker,
+    date,
+    preco_fechamento,
+    media_movel_7d,
+    volume_total
+FROM default.bovespa_refined
+WHERE date >= '2024-01-01'
+ORDER BY ticker, date;
+```
+
+---
+
+## 📊 Transformações do Job Glue
+
+| Transformação | Descrição |
+|---|---|
+| **Agrupamento** | Cálculo de volume total e preço médio agrupados por ticker e data |
+| **Renomeação de colunas** | `Close` → `preco_fechamento`, `Volume` → `volume_negociado` |
+| **Cálculo temporal** | Média móvel de 7 dias (`media_movel_7d`) e variação diária percentual (`variacao_diaria_pct`) |
+
+---
+
+## 📦 Estrutura de Dados no S3
+
+```
+s3://<seu-bucket>/
+├── raw/
+│   └── date=2024-01-15/
+│       └── bovespa_raw.parquet
+└── refined/
+    ├── ticker=PETR4/
+    │   └── date=2024-01-15/
+    │       └── refined.parquet
+    └── ticker=VALE3/
+        └── date=2024-01-15/
+            └── refined.parquet
+```
+
+---
+
+## 👨‍💻 Autores
+
+Desenvolvido como parte do **Tech Challenge — Fase 2** da Pós-Graduação em **Machine Learning Engineering** da **FIAP**.
+
+---
+
+## 📄 Licença
+
+Este projeto é de uso acadêmico, desenvolvido para o programa de pós-graduação FIAP.
