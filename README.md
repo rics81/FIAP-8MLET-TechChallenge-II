@@ -14,6 +14,7 @@ Este projeto implementa um pipeline de dados completo para extração, processam
 ## 📼 Vídeos 
 
 Vídeo #1 (02:42) - Scrap de dados da B3 - https://drive.google.com/file/d/1iJchr6hzl_KcOYZ4AQTRw3ZBFA4cqhSy/view?usp=sharing
+
 Vídeo #2 (05:25) - ETL dos dados na AWS - https://drive.google.com/file/d/1BWGgKZP7NKqAs2HhCzf27Jz8ME0Rogif/view?usp=sharing
 Total: 08:07
 
