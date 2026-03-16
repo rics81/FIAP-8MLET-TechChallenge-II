@@ -55,26 +55,14 @@ def main():
         logging.error("No data retrieved. Exiting.")
         return
 
-    # 4. Filter out dates already present in S3 (safety net for edge cases)
-    if latest_date_in_s3:
-        before = len(data)
-        data = data[data['date'].dt.date > latest_date_in_s3]
-        logging.info(
-            f"Filtered out dates <= {latest_date_in_s3}: {before - len(data)} rows removed, "
-            f"{len(data)} rows remaining."
-        )
-        if data.empty:
-            logging.info("No new data after filtering. Nothing to upload.")
-            return
-
-    # 5. Save as daily Parquet files in a temporary directory
+    # 4. Save as daily Parquet files in a temporary directory
     with tempfile.TemporaryDirectory() as tmpdir:
         parquet_files = save_parquet_by_date(data, output_dir=tmpdir)
         if not parquet_files:
             logging.error("No Parquet files generated.")
             return
 
-        # 6. Upload to S3
+        # 5. Upload to S3
         uploaded = upload_to_s3(parquet_files, bucket, s3_prefix=prefix)
         logging.info(f"Successfully uploaded {len(uploaded)} files to S3.")
 

@@ -11,6 +11,13 @@ Este projeto implementa um pipeline de dados completo para extração, processam
 
 ---
 
+## 📼 Vídeos 
+
+Vídeo #1 (02:42) - Scrap de dados da B3 - https://drive.google.com/file/d/1iJchr6hzl_KcOYZ4AQTRw3ZBFA4cqhSy/view?usp=sharing
+Vídeo #2 (05:25) - ETL dos dados na AWS - https://drive.google.com/file/d/1BWGgKZP7NKqAs2HhCzf27Jz8ME0Rogif/view?usp=sharing
+
+---
+
 ## 🏗️ Arquitetura
 ```mermaid
 flowchart TD
@@ -78,7 +85,7 @@ flowchart TD
 ```
 ### Fluxo do Pipeline
 
-1. **Scrap**: Coleta todos os ticker disponíveis para extração a partir do investidor10.com.
+1. **Scrap**: Coleta todos os tickers disponíveis para extração a partir do investidor10.com.
 2. **Extração**: Script Python coleta dados diários de ações/índices da B3 via `yfinance`.
 3. **Ingestão Bruta**: Os dados são salvos no S3 em formato Parquet, particionados por data (`raw/`).
 4. **Trigger Lambda**: O Lambda é disparado diariamente por um scheduler programado no EventBridge.
@@ -94,7 +101,7 @@ flowchart TD
 ```
 FIAP-8MLET-TechChallenge-II/
 ├── glue
-│   └── techchallenge-f2-glue-etl-refined.py
+│   └── fiap-8mlet-techchallenge-f2-glue-etl-refined.py
 ├── lambda
 │   └── fiap-8mlet-techchallenge-f2-lambda.py
 ├── README.md
